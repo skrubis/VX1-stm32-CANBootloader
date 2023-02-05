@@ -49,10 +49,10 @@ void can_setup(int masterId)
 
    // CAN cell init.
 	// Setting the bitrate to 500KBit. APB1 = 24MHz,
-	 // prescaler = 9 -> 4MHz time quanta frequency.
-	 // 1tq sync + 9tq bit segment1 (TS1) + 6tq bit segment2 (TS2) =
-	 // 16time quanto per bit period, therefor 4MHz/16 = 250kHz
-	 //
+	// prescaler = 6 -> 4MHz time quanta frequency.
+	// 1tq sync + 6tq bit segment1 (TS1) + 1tq bit segment2 (TS2) =
+	// 8time quanto per bit period, therefor 4MHz/16 = 500kHz
+	//
 	can_init(CAN1,
 		     false,          // TTCM: Time triggered comm mode?
 		     true,           // ABOM: Automatic bus-off management?
