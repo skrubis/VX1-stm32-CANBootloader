@@ -31,8 +31,6 @@
 #include <libopencm3/stm32/exti.h>
 #include <libopencm3/cm3/scb.h>
 #include "hwinit.h"
-#include "my_math.h"
-#include "my_string.h"
 
  struct CanMsg
    {

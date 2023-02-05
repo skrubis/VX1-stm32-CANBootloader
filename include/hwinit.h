@@ -38,7 +38,6 @@
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/crc.h>
-#include "stm32_can_light.h"
 
 #ifdef __cplusplus
 extern "C"
