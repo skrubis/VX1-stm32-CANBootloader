@@ -68,11 +68,7 @@ struct pincommands
 #define PINDEF_NUMWORDS (sizeof(struct pindef) * NUM_PIN_COMMANDS / 4)
 
 void clock_setup(void);
-void nvic_setup(void);
-void rtc_setup(void);
-
-void rcc_clock_setup_in_hse_8mhz_out_64mhz(void);
-
+void can_setup(int masterCANID);
 void initialize_pins();
 
 #ifdef __cplusplus

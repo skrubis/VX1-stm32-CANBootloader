@@ -36,7 +36,7 @@
 
  struct CanMsg
    {
-      uint16_t id;
-      uint32_t len;
+      uint32_t id;
+      uint8_t len;
       uint8_t data[8];
    };

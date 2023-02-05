@@ -21,123 +21,55 @@
 
 #include "hwinit.h"
 
-void rcc_clock_setup_in_hse_8mhz_out_64mhz(void)
-{
-
-    flash_prefetch_enable();
-	/*
-	 * Sysclk runs with 72MHz -> 2 waitstates.
-	 * 0WS from 0-24MHz
-	 * 1WS from 24-48MHz
-	 * 2WS from 48-72MHz
-	 */
-	flash_set_ws(FLASH_ACR_LATENCY_2WS);
-
-	/* Enable internal high-speed oscillator. */
-	rcc_osc_on(RCC_HSI);
-	rcc_wait_for_osc_ready(RCC_HSI);
-
-	/* Select HSI as SYSCLK source. */
-	rcc_set_sysclk_source(RCC_CFGR_SW_SYSCLKSEL_HSICLK);
-
-	/* Enable external high-speed oscillator 8MHz. */
-	rcc_osc_on(RCC_HSE);
-	rcc_wait_for_osc_ready(RCC_HSE);
-	
-	/*
-	 * Set prescalers for AHB, ADC, APB1, APB2.
-	 * Do this before touching the PLL (TODO: why?).
-	 */
-	rcc_set_hpre(RCC_CFGR_HPRE_NODIV);    /* Set. 64MHz Max. */
-	rcc_set_adcpre(RCC_CFGR_ADCPRE_DIV8);  /* Set.  8MHz Max.*/	
-    rcc_set_ppre1(RCC_CFGR_PPRE_DIV2);     /* Set. 32MHz Max.*/
-	rcc_set_ppre2(RCC_CFGR_PPRE_NODIV);    /* Set. 64MHz Max. */
-
-    rcc_osc_off(RCC_PLL);
-
-	/*
-	 * Set the PLL multiplication factor to 8.
-	 * 8MHz (external) * 8 (multiplier) = 64MHz
-	 */	
-	rcc_set_pll_multiplication_factor(RCC_CFGR_PLLMUL_PLL_CLK_MUL8); //we need 64Mhz to get 2Mhz SPI!!
-    //rcc_set_pll2_multiplication_factor(RCC_CFGR2_PREDIV1SRC_HSE_CLK);
-    //rcc_set_pll3_multiplication_factor();
-    
-	/* Select HSE as PLL source. */
-	rcc_set_pll_source(RCC_CFGR_PLLSRC_HSE_CLK);
-
-	/*
-	 * External frequency undivided before entering PLL
-	 * (only valid/needed for HSE).
-	 */
-	rcc_set_pllxtpre(RCC_CFGR_PLLXTPRE_HSE_CLK);
-
-	/* Enable PLL oscillator and wait for it to stabilize. */
-	rcc_osc_on(RCC_PLL);
-	rcc_wait_for_osc_ready(RCC_PLL);
-
-	/* Select PLL as SYSCLK source. */
-	rcc_set_sysclk_source(RCC_CFGR_SW_SYSCLKSEL_PLLCLK);
-
-	/* Set the peripheral clock frequencies used */
-	rcc_ahb_frequency  = 64000000;
-	rcc_apb1_frequency = 32000000;
-	rcc_apb2_frequency = 64000000;
-
-}
-
 /**
 * Start clocks of all needed peripherals
 */
 void clock_setup(void)
 {
 
-    rcc_clock_setup_in_hse_8mhz_out_64mhz();
+   rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_HSI_24MHZ]);
 
 //Activate PORTS
-    rcc_periph_clock_enable(RCC_GPIOA);
-    rcc_periph_clock_enable(RCC_GPIOB);
-    rcc_periph_clock_enable(RCC_GPIOC);
-    rcc_periph_clock_enable(RCC_GPIOD);
-    rcc_periph_clock_enable(RCC_GPIOE);
- 
-    // rcc_periph_clock_enable(RCC_TIM1); //GS450H oil pump pwm
-    // rcc_periph_clock_enable(RCC_TIM2); //GS450H 500khz usart clock
-    // rcc_periph_clock_enable(RCC_TIM3); //Scheduler
-    // rcc_periph_clock_enable(RCC_TIM4); //
-    
-    // rcc_periph_clock_enable(RCC_DMA1);  //ADC, and UARTS
-    // rcc_periph_clock_enable(RCC_DMA2);
-
-    rcc_periph_clock_enable(RCC_CRC);
-    rcc_periph_clock_enable(RCC_AFIO); //CAN AND USART3
-    rcc_periph_clock_enable(RCC_CAN1); //CAN1
-    rcc_periph_clock_enable(RCC_CAN2); //CAN2
+   rcc_periph_clock_enable(RCC_GPIOA);
+   rcc_periph_clock_enable(RCC_GPIOB);
+   rcc_periph_clock_enable(RCC_GPIOC);
+   rcc_periph_clock_enable(RCC_CRC);
+   rcc_periph_clock_enable(RCC_AFIO); //CAN AND USART3
+   rcc_periph_clock_enable(RCC_CAN1); //CAN1
+   rcc_periph_clock_enable(RCC_CAN2); //CAN2
 
 }
 
-
-/**
-* Enable Timer refresh and break interrupts
-*/
-void nvic_setup(void)
+void can_setup(int masterId)
 {
-    nvic_set_priority(NVIC_USB_LP_CAN_RX0_IRQ, 0xe << 4); //second lowest priority
-    nvic_enable_irq(NVIC_USB_LP_CAN_RX0_IRQ); //CAN RX
-    
-    nvic_set_priority(NVIC_USB_HP_CAN_TX_IRQ, 0xe << 4); //second lowest priority
-    nvic_enable_irq(NVIC_USB_HP_CAN_TX_IRQ); //CAN TX
-}
+   gpio_set_mode(GPIO_BANK_CAN1_RX, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO_CAN1_RX);
+   gpio_set(GPIO_BANK_CAN1_RX, GPIO_CAN1_RX);
+   // Configure CAN pin: TX
+   gpio_set_mode(GPIO_BANK_CAN1_TX, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_CAN1_TX);
 
-void rtc_setup()
-{
-    //Base clock is HSE/128 = 8MHz/128 = 62.5kHz
-    //62.5kHz / (624 + 1) = 100Hz
-    rtc_auto_awake(RCC_HSE, 624); //10ms tick
-    rtc_set_counter_val(0);
-    //* Enable the RTC interrupt to occur off the SEC flag.
-    rtc_clear_flag(RTC_SEC);
-	rtc_interrupt_enable(RTC_SEC);
+   // CAN cell init.
+	// Setting the bitrate to 500KBit. APB1 = 24MHz,
+	 // prescaler = 9 -> 4MHz time quanta frequency.
+	 // 1tq sync + 9tq bit segment1 (TS1) + 6tq bit segment2 (TS2) =
+	 // 16time quanto per bit period, therefor 4MHz/16 = 250kHz
+	 //
+	can_init(CAN1,
+		     false,          // TTCM: Time triggered comm mode?
+		     true,           // ABOM: Automatic bus-off management?
+		     false,          // AWUM: Automatic wakeup mode?
+		     false,          // NART: No automatic retransmission?
+		     false,          // RFLM: Receive FIFO locked mode?
+		     false,          // TXFP: Transmit FIFO priority?
+		     CAN_BTR_SJW_1TQ,
+		     CAN_BTR_TS1_6TQ,
+		     CAN_BTR_TS2_1TQ,
+		     6,				// BRP+1: Baud rate prescaler
+		     false,
+		     false);
+
+   //register master ID
+   can_filter_id_list_16bit_init(0, masterId << 5, 0, 0, 0, 0, true);
+
 }
 
 //Left over for future usage in an inverter style device..

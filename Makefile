@@ -28,15 +28,15 @@ OBJCOPY		= $(PREFIX)-objcopy
 OBJDUMP		= $(PREFIX)-objdump
 MKDIR_P     = mkdir -p
 TERMINAL_DEBUG ?= 0
-CFLAGS		= -O0 -Wall -Wextra -Ilibopeninv/include -Iinclude/ -Ilibopencm3/include \
+CFLAGS		= -Os -Wall -Wextra -Ilibopeninv/include -Iinclude/ -Ilibopencm3/include \
              -fno-common -fno-builtin -pedantic -DSTM32F1 -DT_DEBUG=$(TERMINAL_DEBUG)  \
 				 -mcpu=cortex-m3 -mthumb -std=gnu99 -ffunction-sections -fdata-sections -g
-CPPFLAGS    = -O0 -Wall -Wextra -Ilibopeninv/include -Iinclude/ -Ilibopencm3/include \
+CPPFLAGS    = -Os -Wall -Wextra -Ilibopeninv/include -Iinclude/ -Ilibopencm3/include \
             -fno-common -std=c++11 -pedantic -DSTM32F1 -DT_DEBUG=$(TERMINAL_DEBUG)  \
 		 -ffunction-sections -fdata-sections -fno-builtin -fno-rtti -fno-exceptions -fno-unwind-tables -mcpu=cortex-m3 -mthumb -g
 LDSCRIPT	= $(BINARY).ld
 LDFLAGS  	= -Llibopencm3/lib -T$(LDSCRIPT) -nostartfiles -Wl,--gc-sections,-Map,linker.map
-OBJSL		= $(BINARY).o hwinit.o stm32_can_light.o  
+OBJSL		= $(BINARY).o hwinit.o
 OBJS     	= $(patsubst %.o,$(OUT_DIR)/%.o, $(OBJSL))
 vpath %.c src/ libopeninv/src/
 vpath %.cpp src/ libopeninv/src/
@@ -57,7 +57,7 @@ all: directories images
 Debug:images
 Release: images
 cleanDebug:clean
-images: get-deps $(BINARY) 
+images: get-deps $(BINARY)
 	@printf "  OBJCOPY $(BINARY).bin\n"
 	$(Q)$(OBJCOPY) -Obinary $(BINARY) $(BINARY).bin
 	@printf "  OBJCOPY $(BINARY).hex\n"
