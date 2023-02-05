@@ -51,7 +51,8 @@ static uint32_t pgwrite=0;
 static uint32_t addr = APP_FLASH_START;
 static uint32_t bufferOffset = 0;
 
-static void initbuffer(){
+static void initbuffer()
+{
    pgwrite=0;
    bufferOffset=0;
 
@@ -86,48 +87,52 @@ static void write_flash(uint32_t addr, uint32_t *pageBuffer)
    }
 }
 
-static void canSend(CanMsg *msg){
+static void canSend(CanMsg *msg)
+{
    can_transmit(CAN1, msg->id, false, false, msg->len, msg->data);
 }
 
-static bool canRecv(CanMsg* msg) {
-	bool ext, rtr;
-	uint8_t fmi;
+static bool canRecv(CanMsg* msg)
+{
+   bool ext, rtr;
+   uint8_t fmi;
 
    return can_receive(CAN1, 0, true, &msg->id, &ext, &rtr, &fmi, &msg->len, (uint8_t*)msg->data, 0) > 0;
 }
 
-static void SendDataRequest(uint32_t len){
+static void SendDataRequest(uint32_t len)
+{
 
-         if (len>8) len=8;
+   if (len>8) len=8;
 
-         txmsg.id       = nodeCANID;
-         txmsg.len      = 8;
-         txmsg.data[0]  = 'P';
-         txmsg.data[1]  = actpage;
-         txmsg.data[2]  = numPages;
-         txmsg.data[3]  = len & 0xFF;
-         txmsg.data[4]  = (startbytereq & 0xFF);
-         txmsg.data[5]  = ((startbytereq >> 8) & 0xFF);
-         txmsg.data[6]  = ((startbytereq >> 16) & 0xFF);
-         txmsg.data[7]  = ((startbytereq >> 24) & 0xFF);
+   txmsg.id       = nodeCANID;
+   txmsg.len      = 8;
+   txmsg.data[0]  = 'P';
+   txmsg.data[1]  = actpage;
+   txmsg.data[2]  = numPages;
+   txmsg.data[3]  = len & 0xFF;
+   txmsg.data[4]  = (startbytereq & 0xFF);
+   txmsg.data[5]  = ((startbytereq >> 8) & 0xFF);
+   txmsg.data[6]  = ((startbytereq >> 16) & 0xFF);
+   txmsg.data[7]  = ((startbytereq >> 24) & 0xFF);
 
-         canSend(&txmsg);
+   canSend(&txmsg);
 }
 
-static void SendCRCRequest(){
+static void SendCRCRequest()
+{
 
-         txmsg.len=8;
-         txmsg.data[0]  = 'C';
-         txmsg.data[1]  = (actpage & 0xFF);
-         txmsg.data[2]  = (numPages & 0xFF);
-         txmsg.data[3]  = (bufferOffset & 0xFF);
-         txmsg.data[4]  = (pgwrite & 0xFF);
-         txmsg.data[5]  = ((pgwrite >> 8) & 0xFF);
-         txmsg.data[6]  = ((pgwrite >> 16) & 0xFF);
-         txmsg.data[7]  = ((pgwrite >> 24) & 0xFF);
+   txmsg.len=8;
+   txmsg.data[0]  = 'C';
+   txmsg.data[1]  = (actpage & 0xFF);
+   txmsg.data[2]  = (numPages & 0xFF);
+   txmsg.data[3]  = (bufferOffset & 0xFF);
+   txmsg.data[4]  = (pgwrite & 0xFF);
+   txmsg.data[5]  = ((pgwrite >> 8) & 0xFF);
+   txmsg.data[6]  = ((pgwrite >> 16) & 0xFF);
+   txmsg.data[7]  = ((pgwrite >> 24) & 0xFF);
 
-         canSend(&txmsg);
+   canSend(&txmsg);
 }
 
 
@@ -139,66 +144,72 @@ static void CanCallback(uint32_t id, uint32_t data[2], uint8_t len) //This is wh
    //grab the adress so we have a byte pointer pointing to the 8 bytes...
    pdata = (uint8_t*)&data[0];
 
-    switch (id)
-    {
-      case masterCANID:
+   switch (id)
+   {
+   case masterCANID:
 
-             switch (gbstate){
-               case 0:
-                     magic = *pdata; //only one byte
-                     //reinit these values...
-                     pgwrite=0;
-                     numPages=0;
-                     bytecount=0;
-                     gbstate=1;
-                 break;
-               case 1:
-                     numPages = *pdata; //only one byte
-                     bytecount = data[1]; //4bytes are copied
-                     bytesleft = bytecount;
-                 break;
-               case 2:
+      switch (gbstate)
+      {
+      case 0:
+         magic = *pdata; //only one byte
+         //reinit these values...
+         pgwrite=0;
+         numPages=0;
+         bytecount=0;
+         gbstate=1;
+         break;
+      case 1:
+         numPages = *pdata; //only one byte
+         bytecount = data[1]; //4bytes are copied
+         bytesleft = bytecount;
+         break;
+      case 2:
 
-                  //lets count bytes recieved...
-                  //we always receive/expect 8bytes here...
-                  startbytereq+=len;
+         //lets count bytes recieved...
+         //we always receive/expect 8bytes here...
+         startbytereq+=len;
 
-                  //we recieve each canframe and add the 8 bytes to the buffer..
-                  for(int i=0;i<2;i++){
-                           page_buffer[pgwrite]=data[i];
-                           pgwrite+=1; //lets increment
-                  }
+         //we recieve each canframe and add the 8 bytes to the buffer..
+         for(int i=0; i<2; i++)
+         {
+            page_buffer[pgwrite]=data[i];
+            pgwrite+=1; //lets increment
+         }
 
-                  //ask for next chunk of page until page is complete ==> auto throttle
-                  //we should add something for the last couple of bytes....
-                  bytesleft -= len;
+         //ask for next chunk of page until page is complete ==> auto throttle
+         //we should add something for the last couple of bytes....
+         bytesleft -= len;
 
-                  if ( (pgwrite!=SMALLEST_PAGE_WORDS) && (pgwrite!=PROGRAM_WORDS) && (bytesleft>0) ){
-                        SendDataRequest(bytesleft);
-                  }else if ((bytesleft>0)){
-                     gbstate+=1;
-                  }
-                  else{ //this is a seperate step for debugging purposes (of the last partial page)
-                     gbstate+=1;
-                  }
+         if ( (pgwrite!=SMALLEST_PAGE_WORDS) && (pgwrite!=PROGRAM_WORDS) && (bytesleft>0) )
+         {
+            SendDataRequest(bytesleft);
+         }
+         else if ((bytesleft>0))
+         {
+            gbstate+=1;
+         }
+         else  //this is a seperate step for debugging purposes (of the last partial page)
+         {
+            gbstate+=1;
+         }
 
-                 break;
-               case 3:
-                     recvCrc=data[0];
-                     gbstate+=1;
-                 break;
-               case 4:
-                  //We just received the CRC wait here to signal main...
-                  //
-                 break;
-               default:
-                 break;
-             }
-
+         break;
+      case 3:
+         recvCrc=data[0];
+         gbstate+=1;
+         break;
+      case 4:
+         //We just received the CRC wait here to signal main...
+         //
          break;
       default:
          break;
-    }
+      }
+
+      break;
+   default:
+      break;
+   }
 
 
 }
@@ -219,12 +230,13 @@ void wait(void)
 }
 
 
-void waitGbstate(uint8_t waitForState){
+void waitGbstate(uint8_t waitForState)
+{
 
-    while (gbstate == waitForState)
-         {
-              wait();
-         }
+   while (gbstate == waitForState)
+   {
+      wait();
+   }
 
 }
 
@@ -292,7 +304,8 @@ extern "C" int main(void)
          {
             wait(); //wait for CAN message
             //if we recieved a piece we reset the counter and the watchdog.
-            if (recnr!=pgwrite){
+            if (recnr!=pgwrite)
+            {
                recnr=pgwrite;
                timeOut = DELAY_200;
                iwdg_reset();

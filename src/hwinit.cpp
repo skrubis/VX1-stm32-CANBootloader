@@ -26,18 +26,13 @@
 */
 void clock_setup(void)
 {
-
    rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_HSI_24MHZ]);
 
-//Activate PORTS
    rcc_periph_clock_enable(RCC_GPIOA);
    rcc_periph_clock_enable(RCC_GPIOB);
    rcc_periph_clock_enable(RCC_GPIOC);
    rcc_periph_clock_enable(RCC_CRC);
-   rcc_periph_clock_enable(RCC_AFIO); //CAN AND USART3
-   rcc_periph_clock_enable(RCC_CAN1); //CAN1
-   rcc_periph_clock_enable(RCC_CAN2); //CAN2
-
+   rcc_periph_clock_enable(RCC_CAN1);
 }
 
 void can_setup(int masterId)
@@ -63,13 +58,12 @@ void can_setup(int masterId)
 		     CAN_BTR_SJW_1TQ,
 		     CAN_BTR_TS1_6TQ,
 		     CAN_BTR_TS2_1TQ,
-		     6,				// BRP+1: Baud rate prescaler
+		     6,				   // BRP: Baud rate prescaler
 		     false,
 		     false);
 
    //register master ID
    can_filter_id_list_16bit_init(0, masterId << 5, 0, 0, 0, 0, true);
-
 }
 
 //Left over for future usage in an inverter style device..

@@ -19,22 +19,19 @@
 #include <stdint.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/timer.h>
-#include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/can.h>
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/iwdg.h>
 #include <libopencm3/stm32/desig.h>
-#include <libopencm3/stm32/dma.h>
 #include <libopencm3/stm32/crc.h>
 #include <libopencm3/stm32/iwdg.h>
 #include <libopencm3/stm32/exti.h>
 #include <libopencm3/cm3/scb.h>
 #include "hwinit.h"
 
- struct CanMsg
-   {
-      uint32_t id;
-      uint8_t len;
-      uint8_t data[8];
-   };
+struct CanMsg
+{
+   uint32_t id;
+   uint8_t len;
+   uint8_t data[8];
+};

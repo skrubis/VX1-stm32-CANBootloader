@@ -21,21 +21,9 @@
 #ifndef HWINIT_H_INCLUDED
 #define HWINIT_H_INCLUDED
 
-#include <libopencm3/cm3/common.h>
 #include <libopencm3/stm32/can.h>
-#include <libopencm3/cm3/nvic.h>
-#include <libopencm3/cm3/scb.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/rcc.h>
-#include <libopencm3/stm32/usart.h>
-#include <libopencm3/stm32/adc.h>
-#include <libopencm3/stm32/timer.h>
-#include <libopencm3/stm32/dma.h>
-#include <libopencm3/stm32/rtc.h>
-#include <libopencm3/stm32/spi.h>
-#include <libopencm3/stm32/exti.h>
-#include <libopencm3/stm32/rtc.h>
-#include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/desig.h>
 #include <libopencm3/stm32/crc.h>
 
