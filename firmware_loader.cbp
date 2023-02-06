@@ -16,7 +16,7 @@
 		</MakeCommands>
 		<Build>
 			<Target title="Release">
-				<Option output="stm32_loader" prefix_auto="0" extension_auto="0" />
+				<Option output="stm32_canloader" prefix_auto="0" extension_auto="0" />
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
 				<Option compiler="armelfgcc" />
@@ -31,11 +31,10 @@
 			</Target>
 		</Build>
 		<Unit filename="Makefile" />
-		<Unit filename="hwdefs.h" />
-		<Unit filename="stm32_loader.c">
-			<Option compilerVar="CC" />
-		</Unit>
-		<Unit filename="stm32_loader.ld" />
+		<Unit filename="include/hwinit.h" />
+		<Unit filename="src/hwinit.cpp" />
+		<Unit filename="src/stm32_canloader.cpp" />
+		<Unit filename="stm32_canloader.ld" />
 		<Extensions>
 			<debugger>
 				<search_path add="/home/johu/Projekte/e-umbau/firmware/tumanako-inverter-fw-bootloader/" />
