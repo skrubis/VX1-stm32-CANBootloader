@@ -21,11 +21,6 @@
 #ifndef HWINIT_H_INCLUDED
 #define HWINIT_H_INCLUDED
 
-#include <libopencm3/stm32/can.h>
-#include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/rcc.h>
-#include <libopencm3/stm32/desig.h>
-#include <libopencm3/stm32/crc.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -56,6 +51,7 @@ struct pincommands
 
 void clock_setup(void);
 void can_setup(int masterCANID);
+void can_teardown();
 void initialize_pins();
 
 #ifdef __cplusplus

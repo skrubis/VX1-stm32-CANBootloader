@@ -18,48 +18,35 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "stm32_canloader.h"
+#include <stdint.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/can.h>
+#include <libopencm3/stm32/flash.h>
+#include <libopencm3/stm32/iwdg.h>
+#include <libopencm3/stm32/desig.h>
+#include <libopencm3/stm32/crc.h>
+#include <libopencm3/stm32/iwdg.h>
+#include <libopencm3/stm32/exti.h>
+#include <libopencm3/cm3/scb.h>
+#include "hwinit.h"
 
-#define FLASH_START 0x08000000
+#define FLASH_START         0x08000000
 #define SMALLEST_PAGE_WORDS 256
 #define PROGRAM_WORDS       512
-#define APP_FLASH_START 0x08001000 //should be the correct value for the program...
-#define BOOTLOADER_MAGIC 0xAA
-#define DELAY_100 (1 << 15)
-#define DELAY_200 (1 << 16)
+#define APP_FLASH_START     0x08001000
+#define BOOTLOADER_MAGIC    0xAA
+#define DELAY_100           (1 << 17)
+#define nodeCANID           0x7DE
+#define masterCANID         0x7DD
 
-#define nodeCANID 0x7DE
-#define masterCANID 0x7DD
-
-static CanMsg txmsg;
-
-static uint8_t gbstate=0;
-
-static uint8_t magic = 0;
-static uint8_t numPages = 0;
-static uint8_t actpage  = 0;
-static uint32_t bytecount = 0;
-static uint32_t startbytereq = 0;
-static int32_t bytesleft=0;
-
-static uint32_t recvCrc = 0;
-
-static const uint32_t receiveWords = SMALLEST_PAGE_WORDS;
-static uint32_t page_buffer[PROGRAM_WORDS];
-static uint32_t pgwrite=0;
-
-static uint32_t addr = APP_FLASH_START;
-static uint32_t bufferOffset = 0;
-
-static void initbuffer()
+enum states
 {
-   pgwrite=0;
-   bufferOffset=0;
+   MAGIC, PAGECOUNT, PAGE, CRC, PROGRAM, DONE
+};
 
-   for (int i = 0; i < PROGRAM_WORDS; i++)
-      page_buffer[i]=0;
-
-}
+static states state = MAGIC;
+static uint32_t page_buffer[PROGRAM_WORDS];
 
 //Check 1k of flash whether it contains only 0xFF = erased
 static bool check_erased(uint32_t* baseAddress)
@@ -87,286 +74,63 @@ static void write_flash(uint32_t addr, uint32_t *pageBuffer)
    }
 }
 
-static void canSend(CanMsg *msg)
+static void can_send_byte(uint8_t b)
 {
-   can_transmit(CAN1, msg->id, false, false, msg->len, msg->data);
+   can_transmit(CAN1, nodeCANID, false, false, 1, &b);
 }
 
-static bool canRecv(CanMsg* msg)
+static bool can_recv(uint8_t* data)
 {
+   uint32_t id;
    bool ext, rtr;
-   uint8_t fmi;
+   uint8_t fmi, len;
 
-   return can_receive(CAN1, 0, true, &msg->id, &ext, &rtr, &fmi, &msg->len, (uint8_t*)msg->data, 0) > 0;
+   return can_receive(CAN1, 0, true, &id, &ext, &rtr, &fmi, &len, data, 0) > 0;
 }
 
-static void SendDataRequest(uint32_t len)
+static void wait()
 {
-
-   if (len>8) len=8;
-
-   txmsg.id       = nodeCANID;
-   txmsg.len      = 8;
-   txmsg.data[0]  = 'P';
-   txmsg.data[1]  = actpage;
-   txmsg.data[2]  = numPages;
-   txmsg.data[3]  = len & 0xFF;
-   txmsg.data[4]  = (startbytereq & 0xFF);
-   txmsg.data[5]  = ((startbytereq >> 8) & 0xFF);
-   txmsg.data[6]  = ((startbytereq >> 16) & 0xFF);
-   txmsg.data[7]  = ((startbytereq >> 24) & 0xFF);
-
-   canSend(&txmsg);
+   for (volatile uint32_t i = DELAY_100; i > 0; i--);
 }
 
-static void SendCRCRequest()
-{
-
-   txmsg.len=8;
-   txmsg.data[0]  = 'C';
-   txmsg.data[1]  = (actpage & 0xFF);
-   txmsg.data[2]  = (numPages & 0xFF);
-   txmsg.data[3]  = (bufferOffset & 0xFF);
-   txmsg.data[4]  = (pgwrite & 0xFF);
-   txmsg.data[5]  = ((pgwrite >> 8) & 0xFF);
-   txmsg.data[6]  = ((pgwrite >> 16) & 0xFF);
-   txmsg.data[7]  = ((pgwrite >> 24) & 0xFF);
-
-   canSend(&txmsg);
-}
-
-
-static void CanCallback(uint32_t id, uint32_t data[2], uint8_t len) //This is where we go when a defined CAN message is received.
-{
-
-   uint8_t *pdata; //a pointer to point to the first byte in the data section
-
-   //grab the adress so we have a byte pointer pointing to the 8 bytes...
-   pdata = (uint8_t*)&data[0];
-
-   switch (id)
-   {
-   case masterCANID:
-
-      switch (gbstate)
-      {
-      case 0:
-         magic = *pdata; //only one byte
-         //reinit these values...
-         pgwrite=0;
-         numPages=0;
-         bytecount=0;
-         gbstate=1;
-         break;
-      case 1:
-         numPages = *pdata; //only one byte
-         bytecount = data[1]; //4bytes are copied
-         bytesleft = bytecount;
-         break;
-      case 2:
-
-         //lets count bytes recieved...
-         //we always receive/expect 8bytes here...
-         startbytereq+=len;
-
-         //we recieve each canframe and add the 8 bytes to the buffer..
-         for(int i=0; i<2; i++)
-         {
-            page_buffer[pgwrite]=data[i];
-            pgwrite+=1; //lets increment
-         }
-
-         //ask for next chunk of page until page is complete ==> auto throttle
-         //we should add something for the last couple of bytes....
-         bytesleft -= len;
-
-         if ( (pgwrite!=SMALLEST_PAGE_WORDS) && (pgwrite!=PROGRAM_WORDS) && (bytesleft>0) )
-         {
-            SendDataRequest(bytesleft);
-         }
-         else if ((bytesleft>0))
-         {
-            gbstate+=1;
-         }
-         else  //this is a seperate step for debugging purposes (of the last partial page)
-         {
-            gbstate+=1;
-         }
-
-         break;
-      case 3:
-         recvCrc=data[0];
-         gbstate+=1;
-         break;
-      case 4:
-         //We just received the CRC wait here to signal main...
-         //
-         break;
-      default:
-         break;
-      }
-
-      break;
-   default:
-      break;
-   }
-
-
-}
-
-//wait until CAN message received
-void wait(void)
-{
-   CanMsg msg;
-
-   for (volatile uint32_t i = DELAY_100; i > 0; i--)
-   {
-      if (canRecv(&msg))
-      {
-         CanCallback(msg.id, (uint32_t*)msg.data, msg.len);
-         break;
-      }
-   }
-}
-
-
-void waitGbstate(uint8_t waitForState)
-{
-
-   while (gbstate == waitForState)
-   {
-      wait();
-   }
-
-}
 
 extern "C" int main(void)
 {
+   uint32_t addr = APP_FLASH_START;
+
    clock_setup();
    initialize_pins();
-
-   iwdg_set_period_ms(30000);
-   iwdg_start();
-
    can_setup(masterCANID);
 
-   numPages=0;
-   actpage=0;
-   bytecount = 0;
-   startbytereq=0;
+   can_send_byte('2');
 
    wait();
 
-   txmsg.id       = nodeCANID;
-   txmsg.len      = 8;
-   txmsg.data[0]  = '2';
-
-   //ToDo: We could add the device name here...
-   canSend(&txmsg);
-
-   wait();
-
-   if (magic == BOOTLOADER_MAGIC)
+   if (state == PAGECOUNT || state == PAGE)
    {
-      initbuffer();
-
-      txmsg.data[0]  = 'S';
-      canSend(&txmsg);
-
-      //this assures that we receive numpages parameter from host//
-      //don't forget our guard the watchdog...
-      while (numPages == 0)
-      {
-         wait();
-      }
-
       flash_unlock();
 
-      while (actpage <= numPages)
+      while (state != DONE)
       {
-         recvCrc = 0;
-         uint32_t timeOut = DELAY_200;
-
-         crc_reset();
-
-         //This channels incomeing data..
-         gbstate=2;
-
-         //we ask for the first 8bytes...
-         SendDataRequest(8);
-
-         //wait for the dma page buffer tobe filled with data by the interface....
-         //while (!dma_get_interrupt_flag(DMA1, USART_DMA_CHAN, DMA_TCIF))
-
-         uint8_t recnr = 0;
-
-         while (gbstate==2)
+         if (state == PROGRAM)
          {
-            wait(); //wait for CAN message
-            //if we recieved a piece we reset the counter and the watchdog.
-            if (recnr!=pgwrite)
-            {
-               recnr=pgwrite;
-               timeOut = DELAY_200;
-               iwdg_reset();
-            }
-            else
-               timeOut--;
-
-            //When the buffer is not full after about 200ms
-            //Send a time-out to host. We rely on watchdog for upperstream time-out.
-            if (0 == timeOut)
-            {
-               timeOut = DELAY_200;
-
-               txmsg.data[0]='T';
-               canSend(&txmsg);
-            }
-
-
+            write_flash(addr, page_buffer);
+            addr += sizeof(page_buffer);
+            state = PAGE;
+            can_send_byte('P');
          }
-
-         uint32_t crc = crc_calculate_block(&page_buffer[bufferOffset], receiveWords);
-
-         SendCRCRequest();
-
-         //wait to recieve the CRC value
-         waitGbstate(3);
-
-         if (crc == recvCrc)
-         {
-
-            bufferOffset += receiveWords;
-
-            /* Write to flash when we have sufficient amount of data or last page was received */
-            if (bufferOffset == PROGRAM_WORDS || actpage == numPages)
-            {
-               write_flash(addr, page_buffer);
-               addr += sizeof(page_buffer);
-               initbuffer();//lets zero RAM memory (for partial receive)
-            }
-
-            actpage+=1;
-
-         }
-         else
-         {
-
-            txmsg.data[0]  = 'E'; //ERROR!!!
-            canSend(&txmsg);
-
-         }
+         iwdg_reset();
       }
 
       flash_lock();
-
-      //We are done lets tell the world this!!
-      txmsg.data[0]  = 'D';
-      canSend(&txmsg);
    }
 
-   //ToDO: Maybe disable CAN on the otherhand the project already has CAN...
-   //
+   //We are done lets tell the world this!!
+   can_send_byte('D');
+
+   wait();
+
+   can_teardown();
 
    void (*app_main)(void) = (void (*)(void)) *(volatile uint32_t*)(APP_FLASH_START + 4);
    SCB_VTOR = APP_FLASH_START;
@@ -375,3 +139,75 @@ extern "C" int main(void)
    return 0;
 }
 
+/* Interrupt service routines */
+extern "C" void usb_lp_can_rx0_isr(void)
+{
+   uint8_t canData[8];
+   uint32_t* words = (uint32_t*)canData;
+   static uint8_t numPages = 0;
+   static uint32_t currentWord = 0;
+   static uint32_t crc;
+
+   can_recv(canData);
+
+   switch (state)
+   {
+   case MAGIC:
+      if (canData[0] == BOOTLOADER_MAGIC)
+      {
+         can_send_byte('S');
+         state = PAGECOUNT;
+      }
+      break;
+   case PAGECOUNT:
+      numPages = canData[0];
+      state = PAGE;
+      currentWord = 0;
+      can_send_byte('P');
+      crc_reset();
+      break;
+   case PAGE:
+      page_buffer[currentWord++] = words[0];
+      page_buffer[currentWord++] = words[1];
+      crc_calculate(words[0]);
+      crc = crc_calculate(words[1]);
+
+      if (currentWord == PROGRAM_WORDS)
+      {
+         state = CRC;
+         can_send_byte('C');
+      }
+      else
+      {
+         can_send_byte('P');
+      }
+      break;
+   case CRC:
+      currentWord = 0;
+      crc_reset();
+      if (words[0] == crc)
+      {
+         numPages--;
+         if (numPages == 0)
+         {
+            state = DONE;
+         }
+         else
+         {
+            state = PROGRAM;
+         }
+      }
+      else
+      {
+         can_send_byte('E');
+         state = PAGE;
+      }
+      break;
+   case PROGRAM:
+      //Flash programming done in main()
+      break;
+   case DONE:
+      //Nothing to do!
+      break;
+   }
+}
