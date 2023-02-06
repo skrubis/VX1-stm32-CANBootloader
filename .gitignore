@@ -1,10 +1,7 @@
 *.o
 obj
 linker.map
-sinus.layout
-sinus.cscope_file_list
-updater.py
 *.hex
 *.bin
-stm32_sine
+stm32_canloader
 .vscode
