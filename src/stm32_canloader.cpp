@@ -131,6 +131,7 @@ extern "C" int main(void)
    wait();
 
    can_teardown();
+   clock_teardown();
 
    void (*app_main)(void) = (void (*)(void)) *(volatile uint32_t*)(APP_FLASH_START + 4);
    SCB_VTOR = APP_FLASH_START;

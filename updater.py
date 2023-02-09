@@ -9,8 +9,7 @@ def waitForChar(bus, c):
        message = bus.recv(0)
        if message and message.arbitration_id == 0x7de:
           recv_char = message.data[0]
-          print (recv_char)
-    return recv_char
+    return chr(recv_char)
 
 
 def calcStmCrc(data, idx, len):
@@ -33,7 +32,7 @@ def calcStmCrc(data, idx, len):
     return crc
 
 
-PAGE_SIZE_BYTES = 1024
+PAGE_SIZE_BYTES = 2048
 
 
 parser = OptionParser()
@@ -84,35 +83,35 @@ waitForChar(bus, b'P')
 done = False
 page = 0
 idx = 0
+crc = calcStmCrc(data, idx, PAGE_SIZE_BYTES)
+
+print("Sending page 0...", end=' ')
 
 while not done:
-    crc = calcStmCrc(data, idx, PAGE_SIZE_BYTES)
-    c = 0
+   #print("Sending bytes %d to %d" % (idx, idx+8))
+   msg = can.Message(arbitration_id=0x7DD, data=data[idx:idx+8])
+   bus.send(msg)
+   idx = idx + 8
 
-    while c != b'P' and not done:
-      print("Sending page %d..." % (page), end=' ')
+   c = waitForChar(bus, b'CDEPT')
 
-      msg = can.Message(arbitration_id=0x7DD, data=data[idx:idx+8])
+   if 'C' == c:
+      #print("Sending CRC %d" % crc)
+      msg = can.Message(arbitration_id=0x7DD, data=[crc & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF])
       bus.send(msg)
-      idx = idx + 8
-
-      c = waitForChar(bus, b'CDEPT')
-
-      if b'C' == c:
-         ser.write([crc & 0xFF])
-         ser.write([(crc >> 8) & 0xFF])
-         ser.write([(crc >> 16) & 0xFF])
-         ser.write([(crc >> 24) & 0xFF])
-         c = ser.read()
-         page = page + 1
-         idx = page * PAGE_SIZE_BYTES
-      if b'D' == c:
+      c = waitForChar(bus, b'PED')
+      if 'D' == c:
          print("CRC correct!")
          print("Update done!")
          done = True
-      elif b'E' == c:
+      elif 'E' == c:
          print("CRC error!")
-         waitForChar(ser, b'T')
-      elif b'T' == c:
-         print("Sync Error!")
+         idx = page * PAGE_SIZE_BYTES
+         print("Sending page %d..." % (page), end=' ')
+      elif 'P' == c:
+         print("CRC correct!")
+         page = page + 1
+         idx = page * PAGE_SIZE_BYTES
+         crc = calcStmCrc(data, idx, PAGE_SIZE_BYTES)
+         print("Sending page %d..." % (page), end=' ')
 

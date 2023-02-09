@@ -31,9 +31,13 @@
 /**
 * Start clocks of all needed peripherals
 */
-void clock_setup(void)
+void clock_setup()
 {
-   rcc_clock_setup_pll(&rcc_hsi_configs[RCC_CLOCK_HSI_24MHZ]);
+   rcc_set_pll_multiplication_factor(RCC_CFGR_PLLMUL_PLL_CLK_MUL6);
+   rcc_set_pll_source(RCC_CFGR_PLLSRC_HSI_CLK_DIV2);
+   rcc_osc_on(RCC_PLL);
+   rcc_wait_for_osc_ready(RCC_PLL);
+   rcc_set_sysclk_source(RCC_CFGR_SW_SYSCLKSEL_PLLCLK);
    rcc_osc_on(RCC_LSI);
 
    rcc_periph_clock_enable(RCC_GPIOA);
@@ -45,6 +49,12 @@ void clock_setup(void)
    rcc_wait_for_osc_ready(RCC_LSI);
    iwdg_set_period_ms(2000);
    iwdg_start();
+}
+
+void clock_teardown()
+{
+   rcc_set_sysclk_source(RCC_CFGR_SW_SYSCLKSEL_HSICLK);
+   rcc_osc_off(RCC_PLL);
 }
 
 void can_setup(int masterId)

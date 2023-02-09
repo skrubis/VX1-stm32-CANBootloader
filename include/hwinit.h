@@ -49,7 +49,8 @@ struct pincommands
 
 #define PINDEF_NUMWORDS (sizeof(struct pindef) * NUM_PIN_COMMANDS / 4)
 
-void clock_setup(void);
+void clock_setup();
+void clock_teardown();
 void can_setup(int masterCANID);
 void can_teardown();
 void initialize_pins();
