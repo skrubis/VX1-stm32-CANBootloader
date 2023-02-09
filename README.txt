@@ -7,15 +7,16 @@
 
 
 This boot loader does not interact with the built-in STM32 boot loader. It 
-uses an interface of your choice, in this version its CANBUS CAN1. The 
-interface flexibility and the independence from the BOOT pins are the 
+uses an interface of your choice, in this version its CANBUS CAN1 and
+USART3.
+The interface flexibility and the independence from the BOOT pins are the 
 main reasons for implementing this boot loader.
 
 New update protocol
 - 500KBaud Canbus on CAN1
 
 
-1 Send '2' indicating version 2 bootloader, wait about 500ms for magic byte 0xAA
+1 Send '2' indicating version 2 bootloader, wait about 500ms for magic byte 0xAA*
 2 If no reply goto 7
 3 Send an 'S' indicating that it is awaiting an update size in pages
 4 If no reply within about 500ms go to step 7
@@ -30,6 +31,9 @@ step 4.1
 6.2 When checksum isn't correct print an 'E' then go to step 4.1
 7 When done print a 'D' and start main firmware
 
+* When updating via CAN you may specify the 3rd word (DESIG_UNIQUE_ID2)
+  in bytes 4-7 in order to only have the matching node enter update mode
+
 Notes:
 - By checksum I mean the one calculated by the STMs integrated CRC32 unit.
 - The actual firmware has a reset command the cycle through the bootloader
@@ -43,8 +47,14 @@ Notes:
 -- EV_BUILDER OPENINVERTER.ORG
 --------------------------------------------
 
-To send over the Hex file an C# program is included as executable.
-It uses an PEAK Systems CAN to USB adapter (one of their series should do it).
+For both interfaces a python script is included. uart-update.py updates via
+serial port, can-update.py updates via CAN (SocketCAN in linux)
+
+python3 can-updater.py -d can2 -f stm32_sine.bin -i 87215032
+The -i argument is optional and specifies the processor id to be updated
+python3 uart-updater.py -d /dev/ttyUSB0 -f stm32_sine.bin
+
+updates via UART
 
 --------------------------------------------
 -- Compiling
@@ -54,12 +64,9 @@ The only external depedency is libopencm3 which I forked. You can download and b
 
 make get-deps
 
-Now you can compile stm32-loader and stm32-bootupdater by typing
+Now you can compile stm32-canloader
 
-make
-cd bootupdater
 make
 
 And upload it to your board using a JTAG/SWD adapter.
 
-NOTE: I used part of libaries which i changed/updated/bug fixed. Becarefull before upgradeing/replacing them.
