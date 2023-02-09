@@ -40,6 +40,8 @@ parser.add_option("-f", "--file", dest="filename",
                   help="update file")
 parser.add_option("-d", "--device", dest="device",
                   help="serial interface")
+parser.add_option("-i", "--id", dest="id",
+                  help="flash only if id=x, x is the first word of processor UID in hex")
 
 (options, args) = parser.parse_args()
 
@@ -66,11 +68,17 @@ print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
 #ser.write(b'reset\r')
-version = waitForChar(bus, b'2')
+version = waitForChar(bus, b'3')
 
-print("Version 2 bootloader, sending magic")
-msg = can.Message(arbitration_id=0x7DD, data=[0xAA])
+if options.id:
+	print("id specified, magic and id")
+	id = int(options.id, 16)
+	msg = can.Message(arbitration_id=0x7DD, data=[0xAA, 0, 0, 0, id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff])
+else:
+	print("No id specified, just sending magic")
+	msg = can.Message(arbitration_id=0x7DD, data=[0xAA])
 bus.send(msg)
+
 waitForChar(bus, b'S')
 
 print("Sending number of pages...")
