@@ -38,8 +38,8 @@ Notes:
 - By checksum I mean the one calculated by the STMs integrated CRC32 unit.
 - The actual firmware has a reset command the cycle through the bootloader
 - The main firmware must be linked to start at address 0x08002000
-- The bootloader starts at address 0x08000000 and can be 8k in size 
-(right now its around 7k)
+- The bootloader starts at address 0x08000000 and can be 4k in size 
+  (right now its 3.9k)
 
 --------------------------------------------
 -- STM32 CAN Bootloader Updater
