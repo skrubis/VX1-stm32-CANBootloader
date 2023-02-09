@@ -19,6 +19,7 @@
  */
 
 #include <libopencm3/stm32/can.h>
+#include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/desig.h>
@@ -39,11 +40,15 @@ void clock_setup()
    rcc_set_sysclk_source(RCC_CFGR_SW_SYSCLKSEL_PLLCLK);
    rcc_osc_on(RCC_LSI);
 
+   rcc_apb1_frequency = 24000000;
+   rcc_apb2_frequency = 24000000;
+
    rcc_periph_clock_enable(RCC_GPIOA);
    rcc_periph_clock_enable(RCC_GPIOB);
    rcc_periph_clock_enable(RCC_GPIOC);
    rcc_periph_clock_enable(RCC_CRC);
    rcc_periph_clock_enable(RCC_CAN1);
+   rcc_periph_clock_enable(RCC_USART3);
 
    rcc_wait_for_osc_ready(RCC_LSI);
    iwdg_set_period_ms(2000);
@@ -93,6 +98,28 @@ void can_teardown()
 {
    can_reset(CAN1);
    nvic_disable_irq(NVIC_USB_LP_CAN_RX0_IRQ);
+}
+
+void usart_setup()
+{
+    gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,
+                  GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_USART3_TX);
+
+    /* Setup UART parameters. */
+    usart_set_baudrate(USART3, 115200);
+    usart_set_databits(USART3, 8);
+    usart_set_mode(USART3, USART_MODE_TX_RX);
+    usart_enable_rx_interrupt(USART3);
+
+    /* Finally enable the USART. */
+    usart_enable(USART3);
+    nvic_enable_irq(NVIC_USART3_IRQ);
+}
+
+void usart_teardown()
+{
+    nvic_disable_irq(NVIC_USART3_IRQ);
+    rcc_periph_reset_pulse(RST_USART3);
 }
 
 //Left over for future usage in an inverter style device..

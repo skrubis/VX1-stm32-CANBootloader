@@ -32,7 +32,7 @@ def calcStmCrc(data, idx, len):
     return crc
 
 
-PAGE_SIZE_BYTES = 2048
+PAGE_SIZE_BYTES = 1024
 
 
 parser = OptionParser()
@@ -68,10 +68,11 @@ print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
 #ser.write(b'reset\r')
+#todo send an SDO request the resets the device
 version = waitForChar(bus, b'3')
 
 if options.id:
-	print("id specified, magic and id")
+	print("id specified, sending magic and id")
 	id = int(options.id, 16)
 	msg = can.Message(arbitration_id=0x7DD, data=[0xAA, 0, 0, 0, id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff])
 else:
@@ -96,7 +97,6 @@ crc = calcStmCrc(data, idx, PAGE_SIZE_BYTES)
 print("Sending page 0...", end=' ')
 
 while not done:
-   #print("Sending bytes %d to %d" % (idx, idx+8))
    msg = can.Message(arbitration_id=0x7DD, data=data[idx:idx+8])
    bus.send(msg)
    idx = idx + 8
@@ -104,7 +104,6 @@ while not done:
    c = waitForChar(bus, b'CDEPT')
 
    if 'C' == c:
-      #print("Sending CRC %d" % crc)
       msg = can.Message(arbitration_id=0x7DD, data=[crc & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF])
       bus.send(msg)
       c = waitForChar(bus, b'PED')

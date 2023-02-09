@@ -21,6 +21,7 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/can.h>
+#include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/flash.h>
 #include <libopencm3/stm32/iwdg.h>
 #include <libopencm3/stm32/desig.h>
@@ -33,7 +34,7 @@
 
 #define FLASH_START         0x08000000
 #define SMALLEST_PAGE_WORDS 256
-#define PROGRAM_WORDS       512
+#define PROGRAM_WORDS       256
 #define APP_FLASH_START     0x08001000
 #define BOOTLOADER_MAGIC    0xAA
 #define DELAY_100           (1 << 17)
@@ -45,8 +46,9 @@ enum states
    MAGIC, PAGECOUNT, PAGE, CRC, PROGRAM, DONE
 };
 
-static states state = MAGIC;
+static volatile states state = MAGIC;
 static uint32_t page_buffer[PROGRAM_WORDS];
+static bool usartUpdate = false;
 
 //Check 1k of flash whether it contains only 0xFF = erased
 static bool check_erased(uint32_t* baseAddress)
@@ -59,14 +61,14 @@ static bool check_erased(uint32_t* baseAddress)
    return check == 0xFFFFFFFF;
 }
 
-//We always write 2kb pages. After erasing the possible first page we check the
-//data content of the possible second page. If it is not erased, it will be.
+//If the device has 2k pages we must only call flash_erase_page()
+//on every other call of write_flash().
+//Therefor we check if the the flash region we attempt to write
+//is already erased (in case of 2k pages) or not (1k pages)
 static void write_flash(uint32_t addr, uint32_t *pageBuffer)
 {
-   flash_erase_page(addr);
-
-   if (!check_erased(((uint32_t*)addr) + SMALLEST_PAGE_WORDS))
-      flash_erase_page(addr + SMALLEST_PAGE_WORDS * 4);
+   if (!check_erased((uint32_t*)addr))
+      flash_erase_page(addr);
 
    for (uint32_t idx = 0; idx < PROGRAM_WORDS; idx++)
    {
@@ -74,9 +76,10 @@ static void write_flash(uint32_t addr, uint32_t *pageBuffer)
    }
 }
 
-static void can_send_byte(uint8_t b)
+static void send_byte(uint8_t b)
 {
    can_transmit(CAN1, NODECANID, false, false, 1, &b);
+   if (usartUpdate) usart_send_blocking(USART3, b);
 }
 
 static bool can_recv(uint8_t* data, uint8_t& len)
@@ -101,8 +104,10 @@ extern "C" int main(void)
    clock_setup();
    initialize_pins();
    can_setup(MASTERCANID);
+   usart_setup();
 
-   can_send_byte('3');
+   send_byte('3');
+   usart_send(USART3, '2'); //advertise version 2 as the protocol is unchanged
 
    wait();
 
@@ -117,20 +122,23 @@ extern "C" int main(void)
             write_flash(addr, page_buffer);
             addr += sizeof(page_buffer);
             state = PAGE;
-            can_send_byte('P');
+            send_byte('P');
          }
          iwdg_reset();
       }
 
+      //Program the final page
+      write_flash(addr, page_buffer);
       flash_lock();
    }
 
    //We are done lets tell the world this!!
-   can_send_byte('D');
+   send_byte('D');
 
    wait();
 
    can_teardown();
+   usart_teardown();
    clock_teardown();
 
    void (*app_main)(void) = (void (*)(void)) *(volatile uint32_t*)(APP_FLASH_START + 4);
@@ -140,32 +148,28 @@ extern "C" int main(void)
    return 0;
 }
 
-/* Interrupt service routines */
-extern "C" void usb_lp_can_rx0_isr(void)
+static void handle_data(uint8_t* data, uint8_t len)
 {
-   uint8_t canData[8], len;
-   uint32_t* words = (uint32_t*)canData;
+   uint32_t* words = (uint32_t*)data;
    static uint8_t numPages = 0;
    static uint32_t currentWord = 0;
    static uint32_t crc;
 
-   can_recv(canData, len);
-
    switch (state)
    {
    case MAGIC:
-      if ((len == 1 && canData[0] == BOOTLOADER_MAGIC) ||
-          (len == 8 && canData[0] == BOOTLOADER_MAGIC && words[1] == DESIG_UNIQUE_ID2))
+      if ((len == 1 && data[0] == BOOTLOADER_MAGIC) ||
+          (len == 8 && data[0] == BOOTLOADER_MAGIC && words[1] == DESIG_UNIQUE_ID2))
       {
-         can_send_byte('S');
+         send_byte('S');
          state = PAGECOUNT;
       }
       break;
    case PAGECOUNT:
-      numPages = canData[0];
+      numPages = data[0];
       state = PAGE;
       currentWord = 0;
-      can_send_byte('P');
+      send_byte('P');
       crc_reset();
       break;
    case PAGE:
@@ -177,11 +181,11 @@ extern "C" void usb_lp_can_rx0_isr(void)
       if (currentWord == PROGRAM_WORDS)
       {
          state = CRC;
-         can_send_byte('C');
+         send_byte('C');
       }
-      else
+      else if (!usartUpdate)
       {
-         can_send_byte('P');
+         send_byte('P');
       }
       break;
    case CRC:
@@ -201,7 +205,7 @@ extern "C" void usb_lp_can_rx0_isr(void)
       }
       else
       {
-         can_send_byte('E');
+         send_byte('E');
          state = PAGE;
       }
       break;
@@ -210,6 +214,52 @@ extern "C" void usb_lp_can_rx0_isr(void)
       break;
    case DONE:
       //Nothing to do!
+      break;
+   }
+
+}
+
+/* Interrupt service routines */
+extern "C" void usb_lp_can_rx0_isr()
+{
+   uint8_t canData[8], len;
+
+   can_recv(canData, len);
+   handle_data(canData, len);
+}
+
+extern "C" void usart3_isr()
+{
+   static uint8_t buffer[8], currentByte = 0;
+
+   uint8_t data = usart_recv(USART3);
+
+   usartUpdate = true;
+
+   switch (state)
+   {
+   case MAGIC:
+   case PAGECOUNT:
+      handle_data(&data, 1);
+      break;
+   case PAGE:
+      buffer[currentByte++] = data;
+      if (currentByte == 8)
+      {
+         currentByte = 0;
+         handle_data(buffer, 8);
+      }
+      break;
+   case CRC:
+      buffer[currentByte++] = data;
+      if (currentByte == 4)
+      {
+         currentByte = 0;
+         handle_data(buffer, 4);
+      }
+      break;
+   default:
+      //Should never get here
       break;
    }
 }

@@ -52,6 +52,8 @@ void clock_setup();
 void clock_teardown();
 void can_setup(int masterCANID);
 void can_teardown();
+void usart_setup();
+void usart_teardown();
 void initialize_pins();
 
 #ifdef __cplusplus
