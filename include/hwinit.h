@@ -1,9 +1,8 @@
 /*
- * This file is part of the tumanako_vc project.
+ * This file is part of the CANBootloader project.
  *
- * Copyright (C) 2010 Johannes Huebner <contact@johanneshuebner.com>
- * Copyright (C) 2010 Edward Cheeseman <cheesemanedward@gmail.com>
- * Copyright (C) 2009 Uwe Hermann <uwe@hermann-uwe.de>
+ * Copyright (C) 2022 WDR Automatisering https://wdrautomatisering.nl/
+ * Copyright (C) 2023 Johannes Huebner https://openinverter.org
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

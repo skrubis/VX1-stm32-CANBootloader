@@ -1,9 +1,8 @@
 /*
- * This file is part of the tumanako_vc project.
+ * This file is part of the CANBootloader project.
  *
- * Copyright (C) 2010 Johannes Huebner <contact@johanneshuebner.com>
- * Copyright (C) 2010 Edward Cheeseman <cheesemanedward@gmail.com>
- * Copyright (C) 2009 Uwe Hermann <uwe@hermann-uwe.de>
+ * Copyright (C) 2022 WDR Automatisering https://wdrautomatisering.nl/
+ * Copyright (C) 2023 Johannes Huebner https://openinverter.org
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,8 +36,8 @@
 #define APP_FLASH_START     0x08001000
 #define BOOTLOADER_MAGIC    0xAA
 #define DELAY_100           (1 << 17)
-#define nodeCANID           0x7DE
-#define masterCANID         0x7DD
+#define NODECANID           0x7DE
+#define MASTERCANID         0x7DD
 
 enum states
 {
@@ -76,7 +75,7 @@ static void write_flash(uint32_t addr, uint32_t *pageBuffer)
 
 static void can_send_byte(uint8_t b)
 {
-   can_transmit(CAN1, nodeCANID, false, false, 1, &b);
+   can_transmit(CAN1, NODECANID, false, false, 1, &b);
 }
 
 static bool can_recv(uint8_t* data)
@@ -100,7 +99,7 @@ extern "C" int main(void)
 
    clock_setup();
    initialize_pins();
-   can_setup(masterCANID);
+   can_setup(MASTERCANID);
 
    can_send_byte('2');
 
