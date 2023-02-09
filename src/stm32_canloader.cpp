@@ -27,6 +27,7 @@
 #include <libopencm3/stm32/crc.h>
 #include <libopencm3/stm32/iwdg.h>
 #include <libopencm3/stm32/exti.h>
+#include <libopencm3/stm32/desig.h>
 #include <libopencm3/cm3/scb.h>
 #include "hwinit.h"
 
@@ -78,11 +79,11 @@ static void can_send_byte(uint8_t b)
    can_transmit(CAN1, NODECANID, false, false, 1, &b);
 }
 
-static bool can_recv(uint8_t* data)
+static bool can_recv(uint8_t* data, uint8_t& len)
 {
    uint32_t id;
    bool ext, rtr;
-   uint8_t fmi, len;
+   uint8_t fmi;
 
    return can_receive(CAN1, 0, true, &id, &ext, &rtr, &fmi, &len, data, 0) > 0;
 }
@@ -101,7 +102,7 @@ extern "C" int main(void)
    initialize_pins();
    can_setup(MASTERCANID);
 
-   can_send_byte('2');
+   can_send_byte('3');
 
    wait();
 
@@ -142,18 +143,19 @@ extern "C" int main(void)
 /* Interrupt service routines */
 extern "C" void usb_lp_can_rx0_isr(void)
 {
-   uint8_t canData[8];
+   uint8_t canData[8], len;
    uint32_t* words = (uint32_t*)canData;
    static uint8_t numPages = 0;
    static uint32_t currentWord = 0;
    static uint32_t crc;
 
-   can_recv(canData);
+   can_recv(canData, len);
 
    switch (state)
    {
    case MAGIC:
-      if (canData[0] == BOOTLOADER_MAGIC)
+      if ((len == 1 && canData[0] == BOOTLOADER_MAGIC) ||
+          (len == 8 && canData[0] == BOOTLOADER_MAGIC && words[1] == DESIG_UNIQUE_ID2))
       {
          can_send_byte('S');
          state = PAGECOUNT;
