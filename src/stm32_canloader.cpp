@@ -164,8 +164,7 @@ static void handle_data(uint8_t* data, uint8_t len)
    switch (state)
    {
    case MAGIC:
-      if ((len == 1 && data[0] == BOOTLOADER_MAGIC) ||
-          (len == 8 && data[0] == BOOTLOADER_MAGIC && words[1] == DESIG_UNIQUE_ID2))
+      if ((usartUpdate && data[0] == BOOTLOADER_MAGIC) || words[0] == DESIG_UNIQUE_ID2)
       {
          send_byte('S');
          state = PAGECOUNT;

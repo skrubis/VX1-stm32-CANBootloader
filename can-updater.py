@@ -13,10 +13,12 @@ def waitForChar(bus, c):
 def waitForId(bus, idBytes):
     while True:
         message = bus.recv()
-        if message and message.arbitration_id == 0x7de and \
+        if not idBytes and message.arbitration_id == 0x7de and message.data[0] == 0x33:
+            return list(message.data[4:8])
+        if message and idBytes and message.arbitration_id == 0x7de and \
            message.data[4] == idBytes[0] and message.data[5] == idBytes[1] and \
            message.data[6] == idBytes[2] and message.data[7] == idBytes[3]:
-            return
+            return list(message.data[4:8])
 
 def calcStmCrc(data, idx, len):
     cnt = 0
@@ -79,14 +81,14 @@ bus.send(msg)
 
 if options.id:
 	id = int(options.id, 16)
-	bytes = [0xAA, 0, 0, 0, id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]
+	bytes = [id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]
 	waitForId(bus, bytes[4:8])
 	print("id specified, sending magic and id")
 	msg = can.Message(arbitration_id=0x7DD, data = bytes)
 else:
-	waitForChar(bus, b'3')
-	print("No id specified, just sending magic")
-	msg = can.Message(arbitration_id=0x7DD, data=[0xAA])
+	id = waitForId(bus, False)
+	print("No id specified, reflecting id", id)
+	msg = can.Message(arbitration_id=0x7DD, data=id)
 bus.send(msg)
 
 waitForChar(bus, b'S')
