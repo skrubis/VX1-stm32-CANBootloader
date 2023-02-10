@@ -82,6 +82,12 @@ static void send_byte(uint8_t b)
    if (usartUpdate) usart_send_blocking(USART3, b);
 }
 
+static void send_can_hello()
+{
+   uint32_t data[] = { '3', DESIG_UNIQUE_ID2 };
+   can_transmit(CAN1, NODECANID, false, false, 8, (uint8_t*)data);
+}
+
 static bool can_recv(uint8_t* data, uint8_t& len)
 {
    uint32_t id;
@@ -106,7 +112,7 @@ extern "C" int main(void)
    can_setup(MASTERCANID);
    usart_setup();
 
-   send_byte('3');
+   send_can_hello();
    usart_send(USART3, '2'); //advertise version 2 as the protocol is unchanged
 
    wait();

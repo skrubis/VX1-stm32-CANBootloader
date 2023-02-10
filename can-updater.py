@@ -2,7 +2,6 @@ import can
 from optparse import OptionParser
 from time import sleep
 
-
 def waitForChar(bus, c):
     recv_char = 0
     while recv_char not in c:
@@ -11,6 +10,13 @@ def waitForChar(bus, c):
           recv_char = message.data[0]
     return chr(recv_char)
 
+def waitForId(bus, idBytes):
+    while True:
+        message = bus.recv()
+        if message and message.arbitration_id == 0x7de and \
+           message.data[4] == idBytes[0] and message.data[5] == idBytes[1] and \
+           message.data[6] == idBytes[2] and message.data[7] == idBytes[3]:
+            return
 
 def calcStmCrc(data, idx, len):
     cnt = 0
@@ -67,15 +73,18 @@ while (len(data) % PAGE_SIZE_BYTES) > 0:
 print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
-#ser.write(b'reset\r')
-#todo send an SDO request the resets the device
-version = waitForChar(bus, b'3')
+#This sends an SDO request to index 0x5002, subindex 2 which triggers a reset
+msg = can.Message(arbitration_id=0x601, data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
+bus.send(msg)
 
 if options.id:
-	print("id specified, sending magic and id")
 	id = int(options.id, 16)
-	msg = can.Message(arbitration_id=0x7DD, data=[0xAA, 0, 0, 0, id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff])
+	bytes = [0xAA, 0, 0, 0, id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]
+	waitForId(bus, bytes[4:8])
+	print("id specified, sending magic and id")
+	msg = can.Message(arbitration_id=0x7DD, data = bytes)
 else:
+	waitForChar(bus, b'3')
 	print("No id specified, just sending magic")
 	msg = can.Message(arbitration_id=0x7DD, data=[0xAA])
 bus.send(msg)
