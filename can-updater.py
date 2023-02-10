@@ -39,7 +39,6 @@ def calcStmCrc(data, idx, len):
                 crc = (crc << 1) & 0xffffffff
     return crc
 
-
 PAGE_SIZE_BYTES = 1024
 
 
@@ -49,7 +48,9 @@ parser.add_option("-f", "--file", dest="filename",
 parser.add_option("-d", "--device", dest="device",
                   help="serial interface")
 parser.add_option("-i", "--id", dest="id",
-                  help="flash only if id=x, x is the first word of processor UID in hex")
+                  help="flash only if id=x, x is the 3rd word of processor UID in hex")
+parser.add_option("-n", "--nodeid", dest="nodeid", default=1,
+                  help="CANopen node id to send reset command to")
 
 (options, args) = parser.parse_args()
 
@@ -76,7 +77,7 @@ print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
 #This sends an SDO request to index 0x5002, subindex 2 which triggers a reset
-msg = can.Message(arbitration_id=0x601, data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
+msg = can.Message(arbitration_id=0x600 + options.nodeid, data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
 bus.send(msg)
 
 if options.id:
