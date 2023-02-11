@@ -13,12 +13,11 @@ def waitForChar(bus, c):
 def waitForId(bus, idBytes):
     while True:
         message = bus.recv()
-        if not idBytes and message.arbitration_id == 0x7de and message.data[0] == 0x33:
-            return list(message.data[4:8])
-        if message and idBytes and message.arbitration_id == 0x7de and \
-           message.data[4] == idBytes[0] and message.data[5] == idBytes[1] and \
-           message.data[6] == idBytes[2] and message.data[7] == idBytes[3]:
-            return list(message.data[4:8])
+        if message and message.dlc == 8 and message.arbitration_id == 0x7de and message.data[0] == 0x33:
+            if not idBytes:
+                return list(message.data[4:8])
+            if list(message.data[4:8]) == idBytes:
+                return list(message.data[4:8])
 
 def calcStmCrc(data, idx, len):
     cnt = 0
@@ -77,13 +76,13 @@ print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
 #This sends an SDO request to index 0x5002, subindex 2 which triggers a reset
-msg = can.Message(arbitration_id=0x600 + options.nodeid, data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
+msg = can.Message(arbitration_id=0x600 + int(options.nodeid), data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
 bus.send(msg)
 
 if options.id:
 	id = int(options.id, 16)
 	bytes = [id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]
-	waitForId(bus, bytes[4:8])
+	waitForId(bus, bytes)
 	print("id specified, sending magic and id")
 	msg = can.Message(arbitration_id=0x7DD, data = bytes)
 else:
