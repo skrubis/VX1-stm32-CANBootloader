@@ -76,7 +76,7 @@ print("File length is %d bytes/%d pages" % (numBytes, numPages))
 print("Resetting device...")
 
 #This sends an SDO request to index 0x5002, subindex 2 which triggers a reset
-msg = can.Message(arbitration_id=0x600 + int(options.nodeid), data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
+msg = can.Message(arbitration_id=0x600 + int(options.nodeid), is_extended_id=False, data = [ 0x23, 0x02, 0x50, 0x02, 0, 0, 0, 0 ])
 bus.send(msg)
 
 if options.id:
@@ -84,18 +84,18 @@ if options.id:
 	bytes = [id & 0xFF, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]
 	waitForId(bus, bytes)
 	print("id specified, sending magic and id")
-	msg = can.Message(arbitration_id=0x7DD, data = bytes)
+	msg = can.Message(arbitration_id=0x7DD, is_extended_id=False, data = bytes)
 else:
 	id = waitForId(bus, False)
 	print("No id specified, reflecting id", id)
-	msg = can.Message(arbitration_id=0x7DD, data=id)
+	msg = can.Message(arbitration_id=0x7DD, is_extended_id=False, data=id)
 bus.send(msg)
 
 waitForChar(bus, b'S')
 
 print("Sending number of pages...")
 
-msg = can.Message(arbitration_id=0x7DD, data=[numPages])
+msg = can.Message(arbitration_id=0x7DD, is_extended_id=False, data=[numPages])
 bus.send(msg)
 
 waitForChar(bus, b'P')
@@ -108,14 +108,14 @@ crc = calcStmCrc(data, idx, PAGE_SIZE_BYTES)
 print("Sending page 0...", end=' ')
 
 while not done:
-   msg = can.Message(arbitration_id=0x7DD, data=data[idx:idx+8])
+   msg = can.Message(arbitration_id=0x7DD, is_extended_id=False, data=data[idx:idx+8])
    bus.send(msg)
    idx = idx + 8
 
    c = waitForChar(bus, b'CDEPT')
 
    if 'C' == c:
-      msg = can.Message(arbitration_id=0x7DD, data=[crc & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF])
+      msg = can.Message(arbitration_id=0x7DD, is_extended_id=False, data=[crc & 0xFF, (crc >> 8) & 0xFF, (crc >> 16) & 0xFF, (crc >> 24) & 0xFF])
       bus.send(msg)
       c = waitForChar(bus, b'PED')
       if 'D' == c:
