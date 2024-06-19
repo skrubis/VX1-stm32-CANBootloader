@@ -28,6 +28,8 @@
 #include <libopencm3/cm3/nvic.h>
 #include "hwinit.h"
 
+//#define CAN1_REMAP
+
 /**
 * Start clocks of all needed peripherals
 */
@@ -49,6 +51,7 @@ void clock_setup()
    rcc_periph_clock_enable(RCC_CRC);
    rcc_periph_clock_enable(RCC_CAN1);
    rcc_periph_clock_enable(RCC_USART3);
+   rcc_periph_clock_enable(RCC_AFIO);
 
    rcc_wait_for_osc_ready(RCC_LSI);
    iwdg_set_period_ms(2000);
@@ -63,10 +66,18 @@ void clock_teardown()
 
 void can_setup(int masterId)
 {
+#ifdef CAN1_REMAP
+   gpio_primary_remap(AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_ON, AFIO_MAPR_CAN1_REMAP_PORTB);
+   gpio_set_mode(GPIO_BANK_CAN1_PB_RX, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO_CAN1_PB_RX);
+   gpio_set(GPIO_BANK_CAN1_PB_RX, GPIO_CAN1_PB_RX);
+   // Configure CAN pin: TX
+   gpio_set_mode(GPIO_BANK_CAN1_PB_TX, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_CAN1_PB_TX);
+#else
    gpio_set_mode(GPIO_BANK_CAN1_RX, GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, GPIO_CAN1_RX);
    gpio_set(GPIO_BANK_CAN1_RX, GPIO_CAN1_RX);
    // Configure CAN pin: TX
    gpio_set_mode(GPIO_BANK_CAN1_TX, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO_CAN1_TX);
+#endif // CAN1_REMAP
 
    // CAN cell init.
    // Setting the bitrate to 500KBit. APB1 = 24MHz,
@@ -133,6 +144,8 @@ void initialize_pins()
 
    uint32_t crc = crc_calculate_block(((uint32_t*)pincommands), PINDEF_NUMWORDS);
 
+   gpio_primary_remap(AFIO_MAPR_SWJ_CFG_JTAG_OFF_SW_ON, 0);
+
    if (crc == pincommands->crc)
    {
       for (int idx = 0; idx < NUM_PIN_COMMANDS && pincommands->pindef[idx].port > 0; idx++)
@@ -144,6 +157,10 @@ void initialize_pins()
          if (pincommands->pindef[idx].level)
          {
             gpio_set(pincommands->pindef[idx].port, pincommands->pindef[idx].pin);
+         }
+         else
+         {
+            gpio_clear(pincommands->pindef[idx].port, pincommands->pindef[idx].pin);
          }
       }
    }
