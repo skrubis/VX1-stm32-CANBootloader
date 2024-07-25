@@ -117,7 +117,7 @@ extern "C" int main(void)
 
    wait();
 
-   if (state == PAGECOUNT || state == PAGE)
+   if (state == PAGECOUNT || state == PAGE || state == PROGRAM)
    {
       flash_unlock();
 
