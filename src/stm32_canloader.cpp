@@ -84,7 +84,7 @@ static void send_byte(uint8_t b)
 
 static void send_can_hello()
 {
-   uint32_t data[] = { '3', DESIG_UNIQUE_ID2 };
+   uint32_t data[] = { '3' | ('1' << 8),  DESIG_UNIQUE_ID2 };
    can_transmit(CAN1, NODECANID, false, false, 8, (uint8_t*)data);
 }
 
