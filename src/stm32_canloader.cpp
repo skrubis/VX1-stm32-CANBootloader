@@ -139,7 +139,8 @@ extern "C" int main(void)
    }
 
    //We are done lets tell the world this!!
-   send_byte('D');
+   if (state == DONE)
+      send_byte('D');
 
    wait();
 
@@ -154,7 +155,7 @@ extern "C" int main(void)
    return 0;
 }
 
-static void handle_data(uint8_t* data, uint8_t len)
+static void handle_data(uint8_t* data, uint8_t)
 {
    uint32_t* words = (uint32_t*)data;
    static uint8_t numPages = 0;
