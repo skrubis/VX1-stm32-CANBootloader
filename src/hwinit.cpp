@@ -80,10 +80,10 @@ void can_setup(int masterId)
 #endif // CAN1_REMAP
 
    // CAN cell init.
-   // Setting the bitrate to 500KBit. APB1 = 24MHz,
-   // prescaler = 6 -> 4MHz time quanta frequency.
+   // Setting the bitrate to 250KBit. APB1 = 24MHz,
+   // prescaler = 12 -> 2MHz time quanta frequency.
    // 1tq sync + 6tq bit segment1 (TS1) + 1tq bit segment2 (TS2) =
-   // 8time quanto per bit period, therefor 4MHz/16 = 500kHz
+   // 8time quanto per bit period, therefor 2MHz/8 = 250kHz
    //
    can_init(CAN1,
             false,          // TTCM: Time triggered comm mode?
@@ -95,7 +95,7 @@ void can_setup(int masterId)
             CAN_BTR_SJW_1TQ,
             CAN_BTR_TS1_6TQ,
             CAN_BTR_TS2_1TQ,
-            6,				   // BRP: Baud rate prescaler
+            12,                // BRP: Baud rate prescaler
             false,
             false);
 
