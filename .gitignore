@@ -1,7 +1,5 @@
 *.o
 obj
 linker.map
-*.hex
-*.bin
 stm32_canloader
 .vscode
